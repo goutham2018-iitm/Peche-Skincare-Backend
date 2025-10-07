@@ -442,6 +442,47 @@ app.get("/payment/:id", async (req, res) => {
     res.status(500).json({ success: false, message: "Payment not found" });
   }
 });
+// ---------------- SUBSCRIBE TO NEWSLETTER ----------------
+app.post("/subscribe", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ success: false, message: "Invalid email address" });
+    }
+
+    // Check if already subscribed
+    const { data: existing, error: fetchError } = await supabase
+      .from("subscriptions")
+      .select("email")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+    if (existing) {
+      return res.status(409).json({ success: false, message: "Email already subscribed" });
+    }
+
+    // Insert into Supabase
+    const { data, error } = await supabase
+      .from("subscriptions")
+      .insert([{ email }])
+      .select();
+
+    if (error) throw error;
+
+    console.log(`✅ New subscriber: ${email}`);
+
+    res.json({
+      success: true,
+      message: "Thank you for subscribing!",
+      data: data[0],
+    });
+  } catch (err) {
+    console.error("❌ Subscription error:", err);
+    res.status(500).json({ success: false, message: "Failed to subscribe" });
+  }
+});
 
 // ---------------- START SERVER ----------------
 const PORT = process.env.PORT || 4000;
