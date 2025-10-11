@@ -129,7 +129,7 @@ async function sendEbookEmail(name, email, productName) {
             
             <div style="text-align: left;">
               <p style="font-size: 16px; color: #333; margin-bottom: 5px;">Warm regards,</p>
-              <p style="font-size: 18px; color: #D48265; font-weight: 600; margin: 5px 0;">Pêche</p>
+              <p style="font-size: 18px; color: #D48265; font-weight: 600; margin: 5px 0;">Eqa Fakhri</p>
               <p style="font-size: 14px; color: #888; margin: 5px 0;">CEO</p>
               <p style="font-size: 14px; color: #888; margin: 5px 0;">
                 <a href="https://pechepurpose.co" style="color: #D48265; text-decoration: none;">pechepurpose.co</a>
