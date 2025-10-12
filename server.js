@@ -62,8 +62,8 @@ const razorpay = new Razorpay({
   key_secret: KEY_SECRET,
 });
 
-// Email transporter setup
-const transporter = nodemailer.createTransport({
+// Admin email transporter setup (for OTP and admin notifications)
+const adminTransporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: process.env.SMTP_PORT,
   secure: false,
@@ -73,11 +73,22 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// PDF email transporter setup (for customer purchase confirmations)
+const pdfTransporter = nodemailer.createTransport({
+  host: process.env.PDF_SMTP_HOST,
+  port: process.env.PDF_SMTP_PORT,
+  secure: false,
+  auth: {
+    user: process.env.PDF_SMTP_USER,
+    pass: process.env.PDF_SMTP_PASS,
+  },
+});
+
 // Function to send e-book email with download link
 async function sendEbookEmail(name, email, productName) {
   try {
     const mailOptions = {
-      from: `"Pêche" <${process.env.SMTP_USER}>`,
+      from: `"Pêche" <${process.env.PDF_SMTP_USER}>`,
       to: email,
       subject: "Your E-Book Purchase from Pêche",
       html: `
@@ -145,7 +156,7 @@ async function sendEbookEmail(name, email, productName) {
       `
     };
 
-    const info = await transporter.sendMail(mailOptions);
+    const info = await pdfTransporter.sendMail(mailOptions);
     console.log(`✅ E-book email sent to ${email}:`, info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
@@ -197,8 +208,8 @@ app.post("/admin/login", async (req, res) => {
       expiresAt: Date.now() + 5 * 60 * 1000,
     });
 
-    // Send OTP via email
-    await transporter.sendMail({
+    // Send OTP via email using admin transporter
+    await adminTransporter.sendMail({
       from: `"Pêche Admin" <${process.env.SMTP_USER}>`,
       to: email,
       subject: "Your Admin Login OTP",
