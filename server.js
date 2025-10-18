@@ -8,6 +8,7 @@ const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
 const { createClient } = require("@supabase/supabase-js");
+const fetch = require("node-fetch"); // v2 works with require
 
 const app = express();
 
@@ -598,31 +599,46 @@ app.post("/subscribe", async (req, res) => {
   }
 });
 // ---------------- FETCH VERCEL ANALYTICS (Protected) ----------------
-const fetch = (...args) =>
-  import("node-fetch").then(({ default: fetch }) => fetch(...args));
+// server.js or wherever your routes are defined
 
-// temporary dev route
+// const app = express();
+
 app.get("/admin/vercel-analytics", async (req, res) => {
-  const fetch = (...args) => import("node-fetch").then(({ default: fetch }) => fetch(...args));
-
   try {
     const projectId = process.env.VERCEL_PROJECT_ID;
-    const token = process.env.VERCEL_TOKEN;
+    const token = process.env.VERCEL_API_TOKEN;
 
-    const response = await fetch(`https://api.vercel.com/v2/analytics/projects/${projectId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    if (!projectId || !token) {
+      return res.status(500).json({
+        success: false,
+        message: "Vercel project ID or API token not set in environment",
+      });
+    }
+
+    // Vercel Analytics Overview API endpoint
+    const response = await fetch(
+      `https://api.vercel.com/v1/analytics/${projectId}/overview`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return res.status(response.status).json({ success: false, error: errorData });
+    }
 
     const data = await response.json();
-
     res.json({ success: true, analytics: data });
-  } catch (error) {
-    console.error("Error fetching Vercel analytics:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+  } catch (err) {
+    console.error("Error fetching Vercel Analytics:", err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
+
+
 
 
 
