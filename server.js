@@ -597,6 +597,34 @@ app.post("/subscribe", async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to subscribe" });
   }
 });
+// ---------------- FETCH VERCEL ANALYTICS (Protected) ----------------
+const fetch = (...args) =>
+  import("node-fetch").then(({ default: fetch }) => fetch(...args));
+
+// temporary dev route
+app.get("/admin/vercel-analytics", async (req, res) => {
+  const fetch = (...args) => import("node-fetch").then(({ default: fetch }) => fetch(...args));
+
+  try {
+    const projectId = process.env.VERCEL_PROJECT_ID;
+    const token = process.env.VERCEL_TOKEN;
+
+    const response = await fetch(`https://api.vercel.com/v2/analytics/projects/${projectId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await response.json();
+
+    res.json({ success: true, analytics: data });
+  } catch (error) {
+    console.error("Error fetching Vercel analytics:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+
 
 // ---------------- START SERVER ----------------
 const PORT = process.env.PORT || 4000;
