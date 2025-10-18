@@ -598,55 +598,55 @@ app.post("/subscribe", async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to subscribe" });
   }
 });
-// ---------------- FETCH VERCEL ANALYTICS (Protected) ----------------
-// server.js or wherever your routes are defined
+// // ---------------- FETCH VERCEL ANALYTICS (Protected) ----------------
+// // server.js or wherever your routes are defined
 
-// const app = express();
-app.get("/admin/vercel-analytics", async (req, res) => {
-  try {
-    const projectId = process.env.VERCEL_PROJECT_ID;
-    const token = process.env.VERCEL_API_TOKEN;
+// // const app = express();
+// app.get("/admin/vercel-analytics", async (req, res) => {
+//   try {
+//     const projectId = process.env.VERCEL_PROJECT_ID;
+//     const token = process.env.VERCEL_API_TOKEN;
 
-    // Check if env variables are set
-    if (!projectId || !token) {
-      return res.status(500).json({
-        success: false,
-        message: "Vercel project ID or API token not set in environment",
-        analytics: null, // always include analytics key for frontend safety
-      });
-    }
+//     // Check if env variables are set
+//     if (!projectId || !token) {
+//       return res.status(500).json({
+//         success: false,
+//         message: "Vercel project ID or API token not set in environment",
+//         analytics: null, // always include analytics key for frontend safety
+//       });
+//     }
 
-    // Call Vercel Analytics Overview API
-    const response = await fetch(
-      `https://api.vercel.com/v1/analytics/${projectId}/overview`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+//     // Call Vercel Analytics Overview API
+//     const response = await fetch(
+//       `https://api.vercel.com/v1/analytics/${projectId}/overview`,
+//       {
+//         headers: {
+//           Authorization: `Bearer ${token}`,
+//         },
+//       }
+//     );
 
-    const data = await response.json();
+//     const data = await response.json();
 
-    if (!response.ok) {
-      return res.status(response.status).json({
-        success: false,
-        message: data.error?.message || "Failed to fetch Vercel Analytics",
-        analytics: null,
-      });
-    }
+//     if (!response.ok) {
+//       return res.status(response.status).json({
+//         success: false,
+//         message: data.error?.message || "Failed to fetch Vercel Analytics",
+//         analytics: null,
+//       });
+//     }
 
-    // Success
-    res.json({ success: true, analytics: data });
-  } catch (err) {
-    console.error("Error fetching Vercel Analytics:", err);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error while fetching analytics",
-      analytics: null,
-    });
-  }
-});
+//     // Success
+//     res.json({ success: true, analytics: data });
+//   } catch (err) {
+//     console.error("Error fetching Vercel Analytics:", err);
+//     res.status(500).json({
+//       success: false,
+//       message: "Internal server error while fetching analytics",
+//       analytics: null,
+//     });
+//   }
+// });
 
 
 
