@@ -8,7 +8,9 @@ const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
 const { createClient } = require("@supabase/supabase-js");
-const fetch = require("node-fetch"); // v2 works with require
+// const fetch = require("node-fetch"); // v2 works with require
+const { getAnalyticsData } = require('./analytics');
+
 
 const app = express();
 
@@ -44,9 +46,23 @@ app.use(bodyParser.json());
 const KEY_ID = process.env.RAZORPAY_KEY_ID;
 const KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 
-// Admin credentials
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+// ---------------- Admin Credentials ----------------
+const ADMIN_ACCOUNTS = process.env.ADMIN_ACCOUNTS.split(",").map((acc) => {
+  const [email, password] = acc.split(":");
+  return { email: email.trim(), password: password.trim() };
+});
+
+// ---------------- Helper Functions ----------------
+function findAdmin(email, password) {
+  return ADMIN_ACCOUNTS.find(
+    (admin) => admin.email === email && admin.password === password
+  );
+}
+
+function getAdminByEmail(email) {
+  return ADMIN_ACCOUNTS.find((admin) => admin.email === email);
+}
+
 const JWT_SECRET = process.env.JWT_SECRET;
 
 // PDF download link from Supabase Storage
@@ -187,100 +203,48 @@ const verifyToken = (req, res, next) => {
 };
 
 // ---------------- ADMIN LOGIN (Step 1: Verify Credentials) ----------------
+// Admin login
 app.post("/admin/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  const admin = findAdmin(email, password);
+  if (!admin) {
+    return res.status(401).json({ success: false, message: "Invalid credentials" });
+  }
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  otpStore.set(email, { otp, expiresAt: Date.now() + 5 * 60 * 1000 });
+
   try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: "Email and password required" });
-    }
-
-    // Verify credentials
-    if (email !== ADMIN_EMAIL || password !== ADMIN_PASSWORD) {
-      return res.status(401).json({ success: false, message: "Invalid credentials" });
-    }
-
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    // Store OTP with expiry (5 minutes)
-    otpStore.set(email, {
-      otp,
-      expiresAt: Date.now() + 5 * 60 * 1000,
-    });
-
-    // Send OTP via email using admin transporter
     await adminTransporter.sendMail({
       from: `"Pêche Admin" <${process.env.SMTP_USER}>`,
       to: email,
-      subject: "Your Admin Login OTP",
-      html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #2563EB;">Admin Login Verification</h2>
-          <p>Your OTP for admin login is:</p>
-          <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
-            <h1 style="color: #2563EB; margin: 0; letter-spacing: 8px;">${otp}</h1>
-          </div>
-          <p style="color: #6b7280;">This OTP will expire in 5 minutes.</p>
-          <p style="color: #6b7280; font-size: 12px;">If you didn't request this, please ignore this email.</p>
-        </div>
-      `,
+      subject: "Your Admin OTP",
+      html: `<p>Your OTP is <b>${otp}</b> (valid 5 min)</p>`,
     });
-
-    console.log(`✅ OTP sent to ${email}: ${otp}`);
-
-    res.json({ success: true, message: "OTP sent to your email" });
+    res.json({ success: true, message: "OTP sent" });
   } catch (err) {
-    console.error("Error sending OTP:", err);
-    res.status(500).json({ success: false, message: "Failed to send OTP" });
+    console.error("❌ OTP error:", err);
+    res.status(500).json({ success: false, message: "Error sending OTP" });
   }
 });
 
-// ---------------- ADMIN LOGIN (Step 2: Verify OTP) ----------------
-app.post("/admin/verify-otp", async (req, res) => {
-  try {
-    const { email, otp } = req.body;
+// OTP verification
+app.post("/admin/verify-otp", (req, res) => {
+  const { email, otp } = req.body;
+  const stored = otpStore.get(email);
 
-    if (!email || !otp) {
-      return res.status(400).json({ success: false, message: "Email and OTP required" });
-    }
-
-    const storedData = otpStore.get(email);
-
-    if (!storedData) {
-      return res.status(401).json({ success: false, message: "OTP not found or expired" });
-    }
-
-    if (Date.now() > storedData.expiresAt) {
-      otpStore.delete(email);
-      return res.status(401).json({ success: false, message: "OTP expired" });
-    }
-
-    if (storedData.otp !== otp) {
-      return res.status(401).json({ success: false, message: "Invalid OTP" });
-    }
-
-    // OTP verified, delete it
-    otpStore.delete(email);
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { email, role: "admin" },
-      JWT_SECRET,
-      { expiresIn: "24h" }
-    );
-
-    res.json({
-      success: true,
-      message: "Login successful",
-      token,
-      admin: { email },
-    });
-  } catch (err) {
-    console.error("Error verifying OTP:", err);
-    res.status(500).json({ success: false, message: "Server error" });
+  if (!stored || stored.otp !== otp || Date.now() > stored.expiresAt) {
+    return res.status(401).json({ success: false, message: "Invalid or expired OTP" });
   }
+
+  otpStore.delete(email);
+
+  const token = jwt.sign({ email, role: "admin" }, JWT_SECRET, { expiresIn: "24h" });
+
+  res.json({ success: true, token, admin: { email } });
 });
+
 
 // ---------------- GET ALL PAYMENTS (Protected) ----------------
 app.get("/admin/payments", verifyToken, async (req, res) => {
@@ -309,10 +273,21 @@ app.get("/admin/stats", verifyToken, async (req, res) => {
     if (error) throw error;
 
     const totalPayments = data.length;
-    const totalRevenue = data.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+    
+    // ✅ FIXED: Only calculate revenue from captured (successful) payments
+    const totalRevenue = data
+      .filter(p => p.status === "captured")
+      .reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+    
     const successfulPayments = data.filter(p => p.status === "captured").length;
+    const failedPayments = data.filter(p => p.status === "failed").length;
+    const pendingPayments = data.filter(p => 
+      p.status === "authorized" || 
+      p.status === "pending" || 
+      p.status === "created"
+    ).length;
 
-    // Group by date for chart
+    // Group by date for chart (optional - for future analytics)
     const paymentsByDate = {};
     data.forEach(payment => {
       const date = new Date(payment.created_at).toLocaleDateString();
@@ -325,7 +300,9 @@ app.get("/admin/stats", verifyToken, async (req, res) => {
         totalPayments,
         totalRevenue: totalRevenue.toFixed(2),
         successfulPayments,
-        successRate: ((successfulPayments / totalPayments) * 100).toFixed(2),
+        successRate: totalPayments > 0 ? ((successfulPayments / totalPayments) * 100).toFixed(2) : "0.00",
+        failedPayments,
+        pendingPayments,
         paymentsByDate,
       },
     });
@@ -598,60 +575,46 @@ app.post("/subscribe", async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to subscribe" });
   }
 });
-// // ---------------- FETCH VERCEL ANALYTICS (Protected) ----------------
-// // server.js or wherever your routes are defined
+// ✅ JWT Middleware
+function authenticateAdmin(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader) {
+    return res.status(401).json({ success: false, message: 'No token provided' });
+  }
 
-// // const app = express();
-// app.get("/admin/vercel-analytics", async (req, res) => {
-//   try {
-//     const projectId = process.env.VERCEL_PROJECT_ID;
-//     const token = process.env.VERCEL_API_TOKEN;
+  const token = authHeader.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ success: false, message: 'Invalid token format' });
+  }
 
-//     // Check if env variables are set
-//     if (!projectId || !token) {
-//       return res.status(500).json({
-//         success: false,
-//         message: "Vercel project ID or API token not set in environment",
-//         analytics: null, // always include analytics key for frontend safety
-//       });
-//     }
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-//     // Call Vercel Analytics Overview API
-//     const response = await fetch(
-//       `https://api.vercel.com/v1/analytics/${projectId}/overview`,
-//       {
-//         headers: {
-//           Authorization: `Bearer ${token}`,
-//         },
-//       }
-//     );
+    // Check if user is admin
+    if (decoded.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
 
-//     const data = await response.json();
+    req.user = decoded;
+    next();
+  } catch (err) {
+    console.error("JWT verification failed:", err.message);
+    return res.status(401).json({ success: false, message: 'Unauthorized' });
+  }
+}
 
-//     if (!response.ok) {
-//       return res.status(response.status).json({
-//         success: false,
-//         message: data.error?.message || "Failed to fetch Vercel Analytics",
-//         analytics: null,
-//       });
-//     }
-
-//     // Success
-//     res.json({ success: true, analytics: data });
-//   } catch (err) {
-//     console.error("Error fetching Vercel Analytics:", err);
-//     res.status(500).json({
-//       success: false,
-//       message: "Internal server error while fetching analytics",
-//       analytics: null,
-//     });
-//   }
-// });
-
-
-
-
-
+app.get('/admin/analytics', authenticateAdmin, async (req, res) => {
+  try {
+    const analytics = await getAnalyticsData();
+    res.json({ success: true, analytics });
+  } catch (error) {
+    console.error('Analytics error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch analytics data'
+    });
+  }
+});
 // ---------------- START SERVER ----------------
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`✅ Backend running at http://localhost:${PORT}`));
