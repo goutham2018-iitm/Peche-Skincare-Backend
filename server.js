@@ -615,6 +615,31 @@ app.get('/admin/analytics', authenticateAdmin, async (req, res) => {
     });
   }
 });
+
+// ---------------- GET ALL SUBSCRIPTIONS (Protected) ----------------
+app.get("/admin/subscriptions", verifyToken, async (req, res) => {
+  try {
+    console.log("📥 Fetching subscriptions from Supabase...");
+    
+    const { data, error } = await supabase
+      .from("subscriptions")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("❌ Supabase error:", error);
+      throw error;
+    }
+
+    console.log(`✅ Found ${data.length} subscriptions`);
+    console.log("Sample subscription:", data[0]); // Log first item
+
+    res.json({ success: true, subscriptions: data });
+  } catch (err) {
+    console.error("Error fetching subscriptions:", err);
+    res.status(500).json({ success: false, message: "Error fetching subscriptions" });
+  }
+});
 // ---------------- START SERVER ----------------
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`✅ Backend running at http://localhost:${PORT}`));
