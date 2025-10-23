@@ -1,13 +1,16 @@
 // analytics.js - Google Analytics Integration
-const { BetaAnalyticsDataClient } = require('@google-analytics/data');
+require("dotenv").config();
+const { BetaAnalyticsDataClient } = require("@google-analytics/data");
 
-// Initialize the client with your service account credentials
 const analyticsDataClient = new BetaAnalyticsDataClient({
-  keyFilename: './path-to-your-service-account-key.json', // Update this path
+  credentials: {
+    client_email: process.env.GOOGLE_CLIENT_EMAIL,
+    private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+  },
 });
 
-const PROPERTY_ID = 'YOUR_GA4_PROPERTY_ID'; // Replace with your GA4 property ID
 
+const PROPERTY_ID = process.env.VITE_GA_MEASUREMENT_ID;
 async function getAnalyticsData() {
   try {
     // Get user metrics
