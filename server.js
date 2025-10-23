@@ -610,17 +610,46 @@ function authenticateAdmin(req, res, next) {
 
 app.get('/admin/analytics', authenticateAdmin, async (req, res) => {
   try {
+    console.log('🔍 Analytics endpoint called');
+    console.log('📊 Checking analytics configuration...');
+    
     const analytics = await getAnalyticsData();
-    res.json({ success: true, analytics });
+    
+    console.log('✅ Analytics data fetched successfully');
+    res.json({ 
+      success: true, 
+      analytics,
+      timestamp: new Date().toISOString()
+    });
+    
   } catch (error) {
-    console.error('Analytics error:', error);
+    console.error('❌ Analytics error:', error.message);
+    console.error('Full error:', error);
+    
+    // More specific error responses
+    if (error.message.includes('credentials')) {
+      return res.status(500).json({
+        success: false,
+        message: 'Google Analytics credentials are invalid or missing',
+        setupRequired: true
+      });
+    }
+    
+    if (error.message.includes('property') || error.message.includes('PERMISSION_DENIED')) {
+      return res.status(500).json({
+        success: false,
+        message: 'No access to Google Analytics property. Check property ID and permissions.',
+        setupRequired: true
+      });
+    }
+    
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch analytics data'
+      message: 'Failed to fetch analytics data',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
-
 // ---------------- GET ALL SUBSCRIPTIONS (Protected) ----------------
 app.get("/admin/subscriptions", verifyToken, async (req, res) => {
   try {
