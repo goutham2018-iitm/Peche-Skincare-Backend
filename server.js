@@ -1,4 +1,3 @@
-// backend/server.js
 require("dotenv").config();
 const express = require("express");
 const Razorpay = require("razorpay");
@@ -8,9 +7,7 @@ const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
 const { createClient } = require("@supabase/supabase-js");
-// const fetch = require("node-fetch"); // v2 works with require
-const { getAnalyticsData } = require('./analytics');
-
+const { getAnalyticsData } = require("./analytics");
 
 const app = express();
 
@@ -19,40 +16,39 @@ app.get("/", (req, res) => {
 });
 
 const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'http://localhost:8080', 
-  'https://pechepurpose.co',
-  'https://www.pechepurpose.co',
-  'https://pechepurpose.vercel.app' 
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:8080",
+  "https://pechepurpose.co",
+  "https://www.pechepurpose.co",
+  "https://pechepurpose.vercel.app",
 ];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
 
 app.use(bodyParser.json());
 
-// Razorpay keys from .env
 const KEY_ID = process.env.RAZORPAY_KEY_ID;
 const KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 
-// ---------------- Admin Credentials ----------------
 const ADMIN_ACCOUNTS = process.env.ADMIN_ACCOUNTS.split(",").map((acc) => {
   const [email, password] = acc.split(":");
   return { email: email.trim(), password: password.trim() };
 });
 
-// ---------------- Helper Functions ----------------
 function findAdmin(email, password) {
   return ADMIN_ACCOUNTS.find(
     (admin) => admin.email === email && admin.password === password
@@ -65,10 +61,10 @@ function getAdminByEmail(email) {
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// PDF download link from Supabase Storage
-const PDF_DOWNLOAD_LINK = process.env.PDF_DOWNLOAD_LINK || "https://ktqussafddgyklyspars.supabase.co/storage/v1/object/sign/PDF/The%20Ultimate%20Bare%20Skin%20Confidence%20Blueprint%20(1).pdf?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9mZWZiZWFlOS1mMTU4LTQ4NTUtOTYxOS1kYTg2Nzc2OTg4ZDQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJQREYvVGhlIFVsdGltYXRlIEJhcmUgU2tpbiBDb25maWRlbmNlIEJsdWVwcmludCAoMSkucGRmIiwiaWF0IjoxNzYwMTY4Mzk1LCJleHAiOjIwNzU1MjgzOTV9.L9ckA4Q124XR4Ik5IYMLV1ITqupUBa8Ox7njb0Geh-U";
+const PDF_DOWNLOAD_LINK =
+  process.env.PDF_DOWNLOAD_LINK ||
+  "https://ktqussafddgyklyspars.supabase.co/storage/v1/object/sign/PDF/The%20Ultimate%20Bare%20Skin%20Confidence%20Blueprint%20(1).pdf?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9mZWZiZWFlOS1mMTU4LTQ4NTUtOTYxOS1kYTg2Nzc2OTg4ZDQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJQREYvVGhlIFVsdGltYXRlIEJhcmUgU2tpbiBDb25maWRlbmNlIEJsdWVwcmludCAoMSkucGRmIiwiaWF0IjoxNzYwMTY4Mzk1LCJleHAiOjIwNzU1MjgzOTV9.L9ckA4Q124XR4Ik5IYMLV1ITqupUBa8Ox7njb0Geh-U";
 
-// Supabase client
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
@@ -79,7 +75,6 @@ const razorpay = new Razorpay({
   key_secret: KEY_SECRET,
 });
 
-// Admin email transporter setup (for OTP and admin notifications)
 const adminTransporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: process.env.SMTP_PORT,
@@ -90,7 +85,6 @@ const adminTransporter = nodemailer.createTransport({
   },
 });
 
-// PDF email transporter setup (for customer purchase confirmations)
 const pdfTransporter = nodemailer.createTransport({
   host: process.env.PDF_SMTP_HOST,
   port: process.env.PDF_SMTP_PORT,
@@ -101,7 +95,6 @@ const pdfTransporter = nodemailer.createTransport({
   },
 });
 
-// Function to send e-book email with download link
 async function sendEbookEmail(name, email, productName) {
   try {
     const mailOptions = {
@@ -170,7 +163,7 @@ async function sendEbookEmail(name, email, productName) {
             <p style="margin: 5px 0;">This email was sent to ${email} because you made a purchase on our website.</p>
           </div>
         </div>
-      `
+      `,
     };
 
     const info = await pdfTransporter.sendMail(mailOptions);
@@ -182,15 +175,15 @@ async function sendEbookEmail(name, email, productName) {
   }
 }
 
-// Store OTPs temporarily (in production, use Redis)
 const otpStore = new Map();
 
-// Middleware to verify JWT token
 const verifyToken = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
-  
+
   if (!token) {
-    return res.status(401).json({ success: false, message: "No token provided" });
+    return res
+      .status(401)
+      .json({ success: false, message: "No token provided" });
   }
 
   try {
@@ -202,14 +195,14 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-// ---------------- ADMIN LOGIN (Step 1: Verify Credentials) ----------------
-// Admin login
 app.post("/admin/login", async (req, res) => {
   const { email, password } = req.body;
 
   const admin = findAdmin(email, password);
   if (!admin) {
-    return res.status(401).json({ success: false, message: "Invalid credentials" });
+    return res
+      .status(401)
+      .json({ success: false, message: "Invalid credentials" });
   }
 
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -229,24 +222,25 @@ app.post("/admin/login", async (req, res) => {
   }
 });
 
-// OTP verification
 app.post("/admin/verify-otp", (req, res) => {
   const { email, otp } = req.body;
   const stored = otpStore.get(email);
 
   if (!stored || stored.otp !== otp || Date.now() > stored.expiresAt) {
-    return res.status(401).json({ success: false, message: "Invalid or expired OTP" });
+    return res
+      .status(401)
+      .json({ success: false, message: "Invalid or expired OTP" });
   }
 
   otpStore.delete(email);
 
-  const token = jwt.sign({ email, role: "admin" }, JWT_SECRET, { expiresIn: "24h" });
+  const token = jwt.sign({ email, role: "admin" }, JWT_SECRET, {
+    expiresIn: "24h",
+  });
 
   res.json({ success: true, token, admin: { email } });
 });
 
-
-// ---------------- GET ALL PAYMENTS (Protected) ----------------
 app.get("/admin/payments", verifyToken, async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -259,11 +253,12 @@ app.get("/admin/payments", verifyToken, async (req, res) => {
     res.json({ success: true, payments: data });
   } catch (err) {
     console.error("Error fetching payments:", err);
-    res.status(500).json({ success: false, message: "Error fetching payments" });
+    res
+      .status(500)
+      .json({ success: false, message: "Error fetching payments" });
   }
 });
 
-// ---------------- GET PAYMENT STATISTICS (Protected) ----------------
 app.get("/admin/stats", verifyToken, async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -273,25 +268,27 @@ app.get("/admin/stats", verifyToken, async (req, res) => {
     if (error) throw error;
 
     const totalPayments = data.length;
-    
-    // ✅ FIXED: Only calculate revenue from captured (successful) payments
+
     const totalRevenue = data
-      .filter(p => p.status === "captured")
+      .filter((p) => p.status === "captured")
       .reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
-    
-    const successfulPayments = data.filter(p => p.status === "captured").length;
-    const failedPayments = data.filter(p => p.status === "failed").length;
-    const pendingPayments = data.filter(p => 
-      p.status === "authorized" || 
-      p.status === "pending" || 
-      p.status === "created"
+
+    const successfulPayments = data.filter(
+      (p) => p.status === "captured"
+    ).length;
+    const failedPayments = data.filter((p) => p.status === "failed").length;
+    const pendingPayments = data.filter(
+      (p) =>
+        p.status === "authorized" ||
+        p.status === "pending" ||
+        p.status === "created"
     ).length;
 
-    // Group by date for chart (optional - for future analytics)
     const paymentsByDate = {};
-    data.forEach(payment => {
+    data.forEach((payment) => {
       const date = new Date(payment.created_at).toLocaleDateString();
-      paymentsByDate[date] = (paymentsByDate[date] || 0) + parseFloat(payment.amount);
+      paymentsByDate[date] =
+        (paymentsByDate[date] || 0) + parseFloat(payment.amount);
     });
 
     res.json({
@@ -300,7 +297,10 @@ app.get("/admin/stats", verifyToken, async (req, res) => {
         totalPayments,
         totalRevenue: totalRevenue.toFixed(2),
         successfulPayments,
-        successRate: totalPayments > 0 ? ((successfulPayments / totalPayments) * 100).toFixed(2) : "0.00",
+        successRate:
+          totalPayments > 0
+            ? ((successfulPayments / totalPayments) * 100).toFixed(2)
+            : "0.00",
         failedPayments,
         pendingPayments,
         paymentsByDate,
@@ -308,25 +308,25 @@ app.get("/admin/stats", verifyToken, async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching stats:", err);
-    res.status(500).json({ success: false, message: "Error fetching statistics" });
+    res
+      .status(500)
+      .json({ success: false, message: "Error fetching statistics" });
   }
 });
 
-// ---------------- CREATE ORDER ----------------
-// ---------------- CREATE ORDER ----------------
 app.post("/create-order", async (req, res) => {
   try {
     const { amount, productName = "34-Page E-book" } = req.body;
     if (!amount) return res.status(400).json({ error: "Amount is required" });
 
     const options = {
-      amount: Math.round(Number(amount) * 100), // convert to paise
+      amount: Math.round(Number(amount) * 100),
       currency: "INR",
       receipt: "receipt_" + Date.now(),
       payment_capture: 1,
       notes: {
         product: productName,
-        type: "e-book"
+        type: "e-book",
       },
     };
 
@@ -338,51 +338,53 @@ app.post("/create-order", async (req, res) => {
   }
 });
 
-// ---------------- VERIFY PAYMENT ----------------
 app.post("/verify-payment", async (req, res) => {
   try {
-    const { 
-      razorpay_order_id, 
-      razorpay_payment_id, 
-      razorpay_signature, 
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
       productName,
       name,
       email,
-      phone 
+      phone,
     } = req.body;
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      return res.status(400).json({ success: false, message: "Missing payment parameters" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing payment parameters" });
     }
 
-    // Verify signature
     const sign = razorpay_order_id + "|" + razorpay_payment_id;
-    const expectedSign = crypto.createHmac("sha256", KEY_SECRET).update(sign).digest("hex");
+    const expectedSign = crypto
+      .createHmac("sha256", KEY_SECRET)
+      .update(sign)
+      .digest("hex");
 
     if (razorpay_signature !== expectedSign) {
-      return res.status(400).json({ success: false, message: "Payment verification failed" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Payment verification failed" });
     }
 
-    // Fetch payment details from Razorpay
     const payment = await razorpay.payments.fetch(razorpay_payment_id);
     const { method, amount, status, created_at } = payment;
 
-    // Use customer details from frontend
     const customerName = name || "Customer";
     const userEmail = email || payment.email || null;
     const userPhone = phone || payment.contact || null;
 
     console.log("✅ Payment verified. Status:", status);
-    console.log({ 
+    console.log({
       name: customerName,
-      email: userEmail, 
-      phone: userPhone, 
-      productName, 
+      email: userEmail,
+      phone: userPhone,
+      productName,
       paymentId: razorpay_payment_id,
-      status: status
+      status: status,
     });
 
-    // Save payment data to Supabase
     const { data, error } = await supabase
       .from("payments")
       .insert([
@@ -393,7 +395,7 @@ app.post("/verify-payment", async (req, res) => {
           email: userEmail,
           phone: userPhone,
           product_name: productName,
-          amount: amount / 100, // Convert paise to rupees
+          amount: amount / 100,
           currency: "INR",
           payment_method: method,
           status: status,
@@ -405,58 +407,55 @@ app.post("/verify-payment", async (req, res) => {
 
     if (error) {
       console.error("❌ Supabase error:", error);
-      return res.status(500).json({ 
-        success: false, 
+      return res.status(500).json({
+        success: false,
         message: "Payment verified but failed to save to database",
-        error: error.message 
+        error: error.message,
       });
     }
 
     console.log("✅ Payment data saved to Supabase:", data);
 
-    // Send e-book email only if payment is successful (captured)
     if (status === "captured" && userEmail) {
       try {
         await sendEbookEmail(customerName, userEmail, productName);
         console.log(`✅ E-book sent successfully to ${userEmail}`);
       } catch (emailError) {
         console.error("❌ Failed to send e-book email:", emailError);
-        // Don't fail the payment verification if email fails
-        // You might want to log this for manual follow-up
       }
     }
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: "Payment verified and e-book sent to your email.",
-      data: data[0]
+      data: data[0],
     });
   } catch (err) {
     console.error("Error verifying payment:", err);
-    res.status(500).json({ success: false, message: "Server error during verification" });
+    res
+      .status(500)
+      .json({ success: false, message: "Server error during verification" });
   }
 });
 
-// ---------------- HANDLE PAYMENT FAILURE ----------------
 app.post("/payment-failed", async (req, res) => {
   try {
-    const { 
-      razorpay_order_id, 
-      razorpay_payment_id, 
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
       error_code,
       error_description,
       productName,
       name,
       email,
-      phone 
+      phone,
     } = req.body;
 
     console.log("❌ Payment failed:", error_description);
 
-    // Try to fetch payment details from Razorpay if payment_id exists
     let amount = 0;
     let method = "unknown";
-    
+
     if (razorpay_payment_id) {
       try {
         const payment = await razorpay.payments.fetch(razorpay_payment_id);
@@ -467,7 +466,6 @@ app.post("/payment-failed", async (req, res) => {
       }
     }
 
-    // Save failed payment to Supabase
     const { data, error } = await supabase
       .from("payments")
       .insert([
@@ -492,9 +490,9 @@ app.post("/payment-failed", async (req, res) => {
       console.error("❌ Supabase error:", error);
     }
 
-    res.json({ 
-      success: true, 
-      message: "Failed payment recorded"
+    res.json({
+      success: true,
+      message: "Failed payment recorded",
     });
   } catch (err) {
     console.error("Error recording failed payment:", err);
@@ -502,7 +500,6 @@ app.post("/payment-failed", async (req, res) => {
   }
 });
 
-// ---------------- GET PAYMENT HISTORY (Optional) ----------------
 app.get("/payments", async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -515,15 +512,16 @@ app.get("/payments", async (req, res) => {
     res.json({ success: true, payments: data });
   } catch (err) {
     console.error("Error fetching payments:", err);
-    res.status(500).json({ success: false, message: "Error fetching payments" });
+    res
+      .status(500)
+      .json({ success: false, message: "Error fetching payments" });
   }
 });
 
-// ---------------- GET PAYMENT BY ID (Optional) ----------------
 app.get("/payment/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const { data, error } = await supabase
       .from("payments")
       .select("*")
@@ -539,16 +537,16 @@ app.get("/payment/:id", async (req, res) => {
   }
 });
 
-// ---------------- SUBSCRIBE TO NEWSLETTER ----------------
 app.post("/subscribe", async (req, res) => {
   try {
     const { email } = req.body;
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res.status(400).json({ success: false, message: "Invalid email address" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid email address" });
     }
 
-    // Check if already subscribed
     const { data: existing, error: fetchError } = await supabase
       .from("subscriptions")
       .select("email")
@@ -557,10 +555,11 @@ app.post("/subscribe", async (req, res) => {
 
     if (fetchError) throw fetchError;
     if (existing) {
-      return res.status(409).json({ success: false, message: "Email already subscribed" });
+      return res
+        .status(409)
+        .json({ success: false, message: "Email already subscribed" });
     }
 
-    // Insert into Supabase
     const { data, error } = await supabase
       .from("subscriptions")
       .insert([{ email }])
@@ -580,81 +579,85 @@ app.post("/subscribe", async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to subscribe" });
   }
 });
-// ✅ JWT Middleware
 function authenticateAdmin(req, res, next) {
-  const authHeader = req.headers['authorization'];
+  const authHeader = req.headers["authorization"];
   if (!authHeader) {
-    return res.status(401).json({ success: false, message: 'No token provided' });
+    return res
+      .status(401)
+      .json({ success: false, message: "No token provided" });
   }
 
-  const token = authHeader.split(' ')[1];
+  const token = authHeader.split(" ")[1];
   if (!token) {
-    return res.status(401).json({ success: false, message: 'Invalid token format' });
+    return res
+      .status(401)
+      .json({ success: false, message: "Invalid token format" });
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Check if user is admin
-    if (decoded.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Access denied' });
+    if (decoded.role !== "admin") {
+      return res.status(403).json({ success: false, message: "Access denied" });
     }
 
     req.user = decoded;
     next();
   } catch (err) {
     console.error("JWT verification failed:", err.message);
-    return res.status(401).json({ success: false, message: 'Unauthorized' });
+    return res.status(401).json({ success: false, message: "Unauthorized" });
   }
 }
 
-app.get('/admin/analytics', authenticateAdmin, async (req, res) => {
+app.get("/admin/analytics", authenticateAdmin, async (req, res) => {
   try {
-    console.log('🔍 Analytics endpoint called');
-    console.log('📊 Checking analytics configuration...');
-    
+    console.log("🔍 Analytics endpoint called");
+    console.log("📊 Checking analytics configuration...");
+
     const analytics = await getAnalyticsData();
-    
-    console.log('✅ Analytics data fetched successfully');
-    res.json({ 
-      success: true, 
+
+    console.log("✅ Analytics data fetched successfully");
+    res.json({
+      success: true,
       analytics,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-    
   } catch (error) {
-    console.error('❌ Analytics error:', error.message);
-    console.error('Full error:', error);
-    
-    // More specific error responses
-    if (error.message.includes('credentials')) {
+    console.error("❌ Analytics error:", error.message);
+    console.error("Full error:", error);
+
+    if (error.message.includes("credentials")) {
       return res.status(500).json({
         success: false,
-        message: 'Google Analytics credentials are invalid or missing',
-        setupRequired: true
+        message: "Google Analytics credentials are invalid or missing",
+        setupRequired: true,
       });
     }
-    
-    if (error.message.includes('property') || error.message.includes('PERMISSION_DENIED')) {
+
+    if (
+      error.message.includes("property") ||
+      error.message.includes("PERMISSION_DENIED")
+    ) {
       return res.status(500).json({
         success: false,
-        message: 'No access to Google Analytics property. Check property ID and permissions.',
-        setupRequired: true
+        message:
+          "No access to Google Analytics property. Check property ID and permissions.",
+        setupRequired: true,
       });
     }
-    
+
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch analytics data',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: "Failed to fetch analytics data",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 });
-// ---------------- GET ALL SUBSCRIPTIONS (Protected) ----------------
+
 app.get("/admin/subscriptions", verifyToken, async (req, res) => {
   try {
     console.log("📥 Fetching subscriptions from Supabase...");
-    
+
     const { data, error } = await supabase
       .from("subscriptions")
       .select("*")
@@ -666,14 +669,17 @@ app.get("/admin/subscriptions", verifyToken, async (req, res) => {
     }
 
     console.log(`✅ Found ${data.length} subscriptions`);
-    console.log("Sample subscription:", data[0]); // Log first item
+    console.log("Sample subscription:", data[0]);
 
     res.json({ success: true, subscriptions: data });
   } catch (err) {
     console.error("Error fetching subscriptions:", err);
-    res.status(500).json({ success: false, message: "Error fetching subscriptions" });
+    res
+      .status(500)
+      .json({ success: false, message: "Error fetching subscriptions" });
   }
 });
-// ---------------- START SERVER ----------------
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`✅ Backend running at http://localhost:${PORT}`));
+app.listen(PORT, () =>
+  console.log(`✅ Backend running at http://localhost:${PORT}`)
+);

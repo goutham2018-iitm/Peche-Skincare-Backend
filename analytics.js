@@ -1,168 +1,142 @@
-// analytics.js - Google Analytics Integration
 require("dotenv").config();
 const { BetaAnalyticsDataClient } = require("@google-analytics/data");
 
-// Check if we have the required environment variables
+const PROPERTY_ID = process.env.GOOGLE_ANALYTICS_PROPERTY_ID;
+const MEASUREMENT_ID = process.env.VITE_GA_MEASUREMENT_ID;
+
 function isAnalyticsConfigured() {
-  const required = ['GOOGLE_CLIENT_EMAIL', 'GOOGLE_PRIVATE_KEY', 'VITE_GA_MEASUREMENT_ID'];
-  const missing = required.filter(key => !process.env[key]);
-  
+  const required = [
+    "GOOGLE_CLIENT_EMAIL",
+    "GOOGLE_PRIVATE_KEY",
+    "GOOGLE_ANALYTICS_PROPERTY_ID",
+  ];
+  const missing = required.filter((key) => !process.env[key]);
+
   if (missing.length > 0) {
-    console.log('❌ Missing GA environment variables:', missing);
+    console.log("❌ Missing GA environment variables:", missing);
     return false;
   }
-  
-  // Check if private key is properly formatted
-  const privateKey = process.env.GOOGLE_PRIVATE_KEY;
-  if (!privateKey || !privateKey.includes('BEGIN PRIVATE KEY')) {
-    console.log('❌ Google private key appears to be malformed');
-    return false;
-  }
-  
-  console.log('✅ Google Analytics environment variables are present');
+
+  console.log("✅ Google Analytics environment variables are present");
+  console.log("   Property ID:", process.env.GOOGLE_ANALYTICS_PROPERTY_ID);
+  console.log("   Measurement ID:", process.env.VITE_GA_MEASUREMENT_ID);
   return true;
 }
 
 let analyticsDataClient = null;
 let isConfigured = false;
 
-// Initialize the client only if configuration is valid
 try {
   if (isAnalyticsConfigured()) {
-    const privateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
-    
+    const privateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n");
+
     analyticsDataClient = new BetaAnalyticsDataClient({
       credentials: {
         client_email: process.env.GOOGLE_CLIENT_EMAIL,
         private_key: privateKey,
       },
-      projectId: process.env.GOOGLE_PROJECT_ID, // Optional but helpful
     });
-    
+
     isConfigured = true;
-    console.log('✅ Google Analytics client initialized successfully');
-  } else {
-    console.log('⚠️ Google Analytics not configured - using mock data');
+    console.log("✅ Google Analytics client initialized successfully");
   }
 } catch (error) {
-  console.error('❌ Failed to initialize Google Analytics client:', error.message);
-  isConfigured = false;
+  console.error(
+    "❌ Failed to initialize Google Analytics client:",
+    error.message
+  );
 }
 
-const PROPERTY_ID = process.env.VITE_GA_MEASUREMENT_ID;
-
 async function getAnalyticsData() {
-  console.log('🔄 Fetching analytics data...');
-  console.log('📊 Configuration status:', isConfigured ? 'Connected to GA' : 'Using mock data');
-  
-  // If not configured or client failed, return mock data
+  console.log("🔄 Fetching analytics data...");
+  console.log("📊 Using Property ID:", PROPERTY_ID);
+
   if (!isConfigured || !analyticsDataClient) {
-    console.log('📊 Returning mock analytics data');
+    console.log("📊 Returning mock analytics data - GA not configured");
     return getMockAnalyticsData();
   }
 
   try {
     console.log(`🔗 Connecting to GA property: ${PROPERTY_ID}`);
-    
-    // Test the connection with a simple request first
-    const testResponse = await analyticsDataClient.runReport({
-      property: `properties/${PROPERTY_ID}`,
-      dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
-      metrics: [{ name: 'activeUsers' }],
-    });
-    
-    console.log('✅ Successfully connected to Google Analytics');
 
-    // Get user metrics
+    const [testResponse] = await analyticsDataClient.runReport({
+      property: `properties/${PROPERTY_ID}`,
+      dateRanges: [{ startDate: "7daysAgo", endDate: "today" }],
+      metrics: [{ name: "activeUsers" }],
+    });
+
+    console.log("✅ Successfully connected to Google Analytics");
+
     const [usersResponse] = await analyticsDataClient.runReport({
       property: `properties/${PROPERTY_ID}`,
-      dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
-      dimensions: [{ name: 'newVsReturning' }],
-      metrics: [{ name: 'activeUsers' }],
+      dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+      dimensions: [{ name: "newVsReturning" }],
+      metrics: [{ name: "activeUsers" }],
     });
 
-    // Get session metrics
     const [sessionsResponse] = await analyticsDataClient.runReport({
       property: `properties/${PROPERTY_ID}`,
-      dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+      dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
       metrics: [
-        { name: 'sessions' },
-        { name: 'averageSessionDuration' },
-        { name: 'bounceRate' },
+        { name: "sessions" },
+        { name: "averageSessionDuration" },
+        { name: "bounceRate" },
       ],
     });
 
-    // Get pageview metrics
     const [pageviewsResponse] = await analyticsDataClient.runReport({
       property: `properties/${PROPERTY_ID}`,
-      dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+      dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
       metrics: [
-        { name: 'screenPageViews' },
-        { name: 'screenPageViewsPerSession' },
+        { name: "screenPageViews" },
+        { name: "screenPageViewsPerSession" },
       ],
     });
 
-    // Get top pages
     const [topPagesResponse] = await analyticsDataClient.runReport({
       property: `properties/${PROPERTY_ID}`,
-      dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
-      dimensions: [{ name: 'pagePath' }],
-      metrics: [
-        { name: 'screenPageViews' },
-        { name: 'totalUsers' },
-      ],
-      orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
+      dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+      dimensions: [{ name: "pagePath" }],
+      metrics: [{ name: "screenPageViews" }, { name: "totalUsers" }],
+      orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }],
       limit: 10,
     });
 
-    // Get device breakdown
     const [devicesResponse] = await analyticsDataClient.runReport({
       property: `properties/${PROPERTY_ID}`,
-      dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
-      dimensions: [{ name: 'deviceCategory' }],
-      metrics: [{ name: 'activeUsers' }],
+      dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+      dimensions: [{ name: "deviceCategory" }],
+      metrics: [{ name: "activeUsers" }],
     });
 
-    // Get top locations
     const [locationsResponse] = await analyticsDataClient.runReport({
       property: `properties/${PROPERTY_ID}`,
-      dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
-      dimensions: [{ name: 'country' }],
-      metrics: [{ name: 'activeUsers' }],
-      orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
+      dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+      dimensions: [{ name: "country" }],
+      metrics: [{ name: "activeUsers" }],
+      orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }],
       limit: 10,
     });
 
-    // Process all data
     const processedData = processAnalyticsResponses({
       usersResponse,
       sessionsResponse,
       pageviewsResponse,
       topPagesResponse,
       devicesResponse,
-      locationsResponse
+      locationsResponse,
     });
 
-    console.log('✅ Real analytics data processed successfully');
+    console.log("✅ Real analytics data processed successfully");
     return {
       ...processedData,
-      source: 'google_analytics',
-      dataStatus: 'live'
+      source: "google_analytics",
+      dataStatus: "live",
+      propertyId: PROPERTY_ID,
     };
-
   } catch (error) {
-    console.error('❌ Error fetching from Google Analytics:', error.message);
-    
-    // Check for specific common errors
-    if (error.message.includes('PERMISSION_DENIED')) {
-      console.error('🔐 Permission denied - check service account permissions');
-    } else if (error.message.includes('not found')) {
-      console.error('🔍 Property not found - check measurement ID');
-    } else if (error.message.includes('UNAUTHENTICATED')) {
-      console.error('🔐 Authentication failed - check credentials');
-    }
-    
-    console.log('📊 Falling back to mock data due to error');
+    console.error("❌ Error fetching from Google Analytics:", error.message);
+    console.log("📊 Falling back to mock data due to error");
     return getMockAnalyticsData();
   }
 }
@@ -174,45 +148,51 @@ function processAnalyticsResponses(responses) {
     pageviewsResponse,
     topPagesResponse,
     devicesResponse,
-    locationsResponse
+    locationsResponse,
   } = responses;
 
-  // Process users data
   let totalUsers = 0;
   let newUsers = 0;
   let returningUsers = 0;
 
-  usersResponse.rows?.forEach(row => {
+  usersResponse.rows?.forEach((row) => {
     const users = parseInt(row.metricValues[0].value);
     totalUsers += users;
-    if (row.dimensionValues[0].value === 'new') {
+    if (row.dimensionValues[0].value === "new") {
       newUsers = users;
     } else {
       returningUsers = users;
     }
   });
 
-  // Process session data
-  const sessions = parseInt(sessionsResponse.rows?.[0]?.metricValues[0]?.value || 0);
-  const avgDuration = parseFloat(sessionsResponse.rows?.[0]?.metricValues[1]?.value || 0);
-  const bounceRate = parseFloat(sessionsResponse.rows?.[0]?.metricValues[2]?.value || 0);
+  const sessions = parseInt(
+    sessionsResponse.rows?.[0]?.metricValues[0]?.value || 0
+  );
+  const avgDuration = parseFloat(
+    sessionsResponse.rows?.[0]?.metricValues[1]?.value || 0
+  );
+  const bounceRate = parseFloat(
+    sessionsResponse.rows?.[0]?.metricValues[2]?.value || 0
+  );
 
-  // Process pageview data
-  const pageviews = parseInt(pageviewsResponse.rows?.[0]?.metricValues[0]?.value || 0);
-  const pageviewsPerSession = parseFloat(pageviewsResponse.rows?.[0]?.metricValues[1]?.value || 0);
+  const pageviews = parseInt(
+    pageviewsResponse.rows?.[0]?.metricValues[0]?.value || 0
+  );
+  const pageviewsPerSession = parseFloat(
+    pageviewsResponse.rows?.[0]?.metricValues[1]?.value || 0
+  );
 
-  // Process top pages
-  const topPages = topPagesResponse.rows?.map(row => ({
-    path: row.dimensionValues[0].value,
-    views: parseInt(row.metricValues[0].value),
-    uniqueViews: parseInt(row.metricValues[1].value),
-  })) || [];
+  const topPages =
+    topPagesResponse.rows?.map((row) => ({
+      path: row.dimensionValues[0].value,
+      views: parseInt(row.metricValues[0].value),
+      uniqueViews: parseInt(row.metricValues[1].value),
+    })) || [];
 
-  // Process device breakdown
   let totalDeviceUsers = 0;
   const deviceData = { desktop: 0, mobile: 0, tablet: 0 };
 
-  devicesResponse.rows?.forEach(row => {
+  devicesResponse.rows?.forEach((row) => {
     const users = parseInt(row.metricValues[0].value);
     totalDeviceUsers += users;
     const device = row.dimensionValues[0].value.toLowerCase();
@@ -221,18 +201,26 @@ function processAnalyticsResponses(responses) {
     }
   });
 
-  // Convert to percentages
   const devices = {
-    desktop: totalDeviceUsers > 0 ? Math.round((deviceData.desktop / totalDeviceUsers) * 100) : 0,
-    mobile: totalDeviceUsers > 0 ? Math.round((deviceData.mobile / totalDeviceUsers) * 100) : 0,
-    tablet: totalDeviceUsers > 0 ? Math.round((deviceData.tablet / totalDeviceUsers) * 100) : 0,
+    desktop:
+      totalDeviceUsers > 0
+        ? Math.round((deviceData.desktop / totalDeviceUsers) * 100)
+        : 0,
+    mobile:
+      totalDeviceUsers > 0
+        ? Math.round((deviceData.mobile / totalDeviceUsers) * 100)
+        : 0,
+    tablet:
+      totalDeviceUsers > 0
+        ? Math.round((deviceData.tablet / totalDeviceUsers) * 100)
+        : 0,
   };
 
-  // Process locations
-  const locations = locationsResponse.rows?.map(row => ({
-    country: row.dimensionValues[0].value,
-    users: parseInt(row.metricValues[0].value),
-  })) || [];
+  const locations =
+    locationsResponse.rows?.map((row) => ({
+      country: row.dimensionValues[0].value,
+      users: parseInt(row.metricValues[0].value),
+    })) || [];
 
   return {
     users: {
@@ -259,7 +247,7 @@ function getMockAnalyticsData() {
   const totalUsers = Math.floor(Math.random() * 5000) + 1000;
   const newUsers = Math.floor(totalUsers * 0.7);
   const returningUsers = totalUsers - newUsers;
-  
+
   return {
     users: {
       total: totalUsers,
@@ -294,8 +282,8 @@ function getMockAnalyticsData() {
       { country: "Canada", users: 456 },
       { country: "Australia", users: 345 },
     ],
-    source: 'mock_data',
-    dataStatus: 'demo'
+    source: "mock_data",
+    dataStatus: "demo",
   };
 }
 
